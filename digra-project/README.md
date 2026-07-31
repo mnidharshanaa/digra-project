@@ -13,8 +13,9 @@ only considered "done" once its unit tests pass — see `tests/`.
 | # | Module | Status |
 |---|--------|--------|
 | 0 | Project scaffold, config, logging, checkpointing | ✅ done |
-| 1 | Data layer (FARM loader, response pools) | ⬜ next |
-| 2 | Core debate engine | ⬜ |
+| 1 | Data layer — FARM loader (schema-verified against live repo) | ✅ done |
+| 1b | Response pool builder (Appendix B-3) + LLM client abstraction | ✅ done (logic verified; VLLMClient needs Kaggle smoke test) |
+| 2 | Core debate engine | ⬜ next |
 | 3 | Propagation metrics (MA/MR/IMR/CR) + cost instrumentation | ⬜ |
 | 4 | Baselines (CoT, CoT-SC, MAD variants) | ⬜ |
 | 5 | DIGRA core (entropy, IG, IGR, partner selection, early stopping) | ⬜ |
@@ -72,6 +73,17 @@ results/
 
 1. Push this repo to GitHub (private is fine), or upload it as a Kaggle
    Dataset (Kaggle notebooks can attach both a code repo and a dataset).
+   Note: `python scripts/00_fetch_farm.py` clones the FARM dataset repo
+   directly (needs internet access, which Kaggle notebooks have by default
+   unless you're in a no-internet competition environment) — no need to
+   bundle the raw data files yourself.
+2. **First real GPU run, in order:**
+   a. `python scripts/00_fetch_farm.py` — stages the dataset, verifies line counts.
+   b. `python scripts/smoke_test_vllm.py --model <hf_id>` — verifies VLLMClient
+      actually behaves as the LLMClient contract requires (this has NOT been
+      testable outside a GPU environment; read its [4/4] output manually
+      before trusting anything built on top of it).
+   c. Only after (a) and (b) both pass: `python scripts/01_build_pools.py`.
 2. In the Kaggle notebook: `!pip install -r requirements.txt`, then
    `import sys; sys.path.append("/kaggle/working/digra-project")`.
 3. Point `project.output_root` (configs/base.yaml) at a path under

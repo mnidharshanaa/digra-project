@@ -35,25 +35,30 @@ models:
                                   # the debate model itself for entropy too
 
 # -----------------------------------------------------------------------------
-# Datasets — paths are filled in after scripts/00_fetch_farm.py runs.
-# `logical_field` names the FARM column holding the "logical" persuasion
-# strategy passage used as the seeded incorrect response.
+# Datasets — populated by scripts/00_fetch_farm.py into data.farm_dir below.
+# Schema verified directly against the live repo (src/data/farm_schema.py,
+# tests/test_farm_schema.py), not assumed from the paper/README alone.
+#
+# IMPORTANT: FARM ships NQ1 (488) and NQ2 (489) as separate subsets — they
+# differ only in how the seeded incorrect "adv.target" was generated (NQ2's
+# target is the LLM's own "easy misselection" from the mcq, NQ1's is a
+# direct negation). The DIGRA paper reports a single "NQ" — src/data/
+# farm_loader.py's load_dataset("nq", ...) pools NQ1+NQ2 together to match
+# that reporting. This is a documented reproduction choice, revisit if
+# NQ1-only vs NQ2-only results diverge meaningfully in practice.
 # -----------------------------------------------------------------------------
+data:
+  farm_dir: "data/farm"          # where scripts/00_fetch_farm.py stages the .jsonl files
+
 datasets:
   nq:
-    farm_subset: "NQ"
-    raw_path: "data/farm/nq.jsonl"
-    logical_field: "logical"
-    n_questions: 150             # working sample size; raise once pipeline is verified
+    farm_subsets: ["nq1", "nq2"]   # pooled — see note above
+    n_questions: 150               # working sample size; raise once pipeline is verified
   boolq:
-    farm_subset: "BoolQ"
-    raw_path: "data/farm/boolq.jsonl"
-    logical_field: "logical"
+    farm_subsets: ["boolq"]
     n_questions: 150
   truthfulqa:
-    farm_subset: "TruthfulQA"
-    raw_path: "data/farm/truthfulqa.jsonl"
-    logical_field: "logical"
+    farm_subsets: ["truthfulqa"]
     n_questions: 150
 
 # -----------------------------------------------------------------------------
