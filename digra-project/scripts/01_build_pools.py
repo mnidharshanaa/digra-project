@@ -56,6 +56,8 @@ def main(config_path: str) -> None:
             model_id=model_cfg["hf_id"],
             dtype=model_cfg.get("dtype", "bfloat16"),
             max_model_len=model_cfg.get("max_model_len", 4096),
+            gpu_memory_utilization=model_cfg.get("gpu_memory_utilization", 0.90),
+            tensor_parallel_size=model_cfg.get("tensor_parallel_size", 1),
         )
 
         for dataset_key in cfg.datasets.to_dict():

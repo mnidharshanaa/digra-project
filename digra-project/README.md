@@ -14,8 +14,9 @@ only considered "done" once its unit tests pass — see `tests/`.
 |---|--------|--------|
 | 0 | Project scaffold, config, logging, checkpointing | ✅ done |
 | 1 | Data layer — FARM loader (schema-verified against live repo) | ✅ done |
-| 1b | Response pool builder (Appendix B-3) + LLM client abstraction | ✅ done (logic verified; VLLMClient needs Kaggle smoke test) |
-| 2 | Core debate engine | ⬜ next |
+| 1b | Response pool builder (Appendix B-3) + LLM client abstraction | ✅ done (logic verified; VLLMClient verified on Kaggle T4x2) |
+| 2 | Core debate engine — Standard MAD, fully-connected topology | ✅ done (orchestration fully tested; VLLMClient wiring untestable here) |
+| 3 | Propagation metrics (MA/MR/IMR/CR) + cost instrumentation | ⬜ next |
 | 3 | Propagation metrics (MA/MR/IMR/CR) + cost instrumentation | ⬜ |
 | 4 | Baselines (CoT, CoT-SC, MAD variants) | ⬜ |
 | 5 | DIGRA core (entropy, IG, IGR, partner selection, early stopping) | ⬜ |
@@ -79,11 +80,15 @@ results/
    bundle the raw data files yourself.
 2. **First real GPU run, in order:**
    a. `python scripts/00_fetch_farm.py` — stages the dataset, verifies line counts.
-   b. `python scripts/smoke_test_vllm.py --model <hf_id>` — verifies VLLMClient
-      actually behaves as the LLMClient contract requires (this has NOT been
-      testable outside a GPU environment; read its [4/4] output manually
-      before trusting anything built on top of it).
-   c. Only after (a) and (b) both pass: `python scripts/01_build_pools.py`.
+   b. `python scripts/smoke_test_vllm.py --model <hf_id> --tensor-parallel-size <N>` —
+      verifies VLLMClient behaves as the LLMClient contract requires. Adjust
+      `--dtype`/`--max-model-len`/`--gpu-memory-utilization`/`--tensor-parallel-size`
+      to your GPU (T4 needs `--dtype float16`, native bfloat16 isn't supported).
+      Read the `[4/4]` output manually before trusting anything built on top of it.
+   c. `python scripts/01_build_pools.py` — builds correct/incorrect response
+      pools per Appendix B-3.
+   d. `python scripts/02_run_debates.py` — runs Standard MAD debates across
+      every dataset/model/setup/seed combination, seeded from (c)'s pools.
 2. In the Kaggle notebook: `!pip install -r requirements.txt`, then
    `import sys; sys.path.append("/kaggle/working/digra-project")`.
 3. Point `project.output_root` (configs/base.yaml) at a path under

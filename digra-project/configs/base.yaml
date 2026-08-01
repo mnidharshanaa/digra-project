@@ -18,18 +18,34 @@ project:
 # Models under test. `hf_id` must match a HuggingFace repo you have access to.
 # `role` distinguishes the debate-generation model from the (optional, cheaper)
 # entropy-estimation proxy model discussed in Appendix C-3 of the DIGRA paper.
+#
+# Serving params (dtype/max_model_len/gpu_memory_utilization/
+# tensor_parallel_size) below are tuned for Kaggle's T4 GPUs, confirmed via
+# scripts/smoke_test_vllm.py on a dual-T4 session:
+#   - dtype "float16" not "bfloat16": T4 (Turing) has no native bfloat16
+#     tensor-core support; bfloat16 falls back to slow emulation there.
+#   - max_model_len lower than the model's native context: T4's 16GB VRAM
+#     is mostly consumed by the model weights themselves, leaving limited
+#     room for KV-cache at long context. Raise this if you have more VRAM
+#     (e.g. a single A100/L4 session) and confirm with the smoke test again.
+#   - tensor_parallel_size 2: assumes a dual-T4 Kaggle session. Set to 1 on
+#     a single-GPU session.
 # -----------------------------------------------------------------------------
 models:
   llama:
     hf_id: "meta-llama/Llama-3.1-8B-Instruct"
     role: "debate"
-    dtype: "bfloat16"
-    max_model_len: 4096
+    dtype: "float16"
+    max_model_len: 2048
+    gpu_memory_utilization: 0.80
+    tensor_parallel_size: 2
   mistral:
     hf_id: "mistralai/Mistral-7B-Instruct-v0.3"
     role: "debate"
-    dtype: "bfloat16"
-    max_model_len: 4096
+    dtype: "float16"
+    max_model_len: 2048
+    gpu_memory_utilization: 0.80
+    tensor_parallel_size: 2
   entropy_proxy: null            # e.g. a smaller model id if using a cheaper
                                   # proxy for entropy estimation; null = use
                                   # the debate model itself for entropy too

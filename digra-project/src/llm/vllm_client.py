@@ -30,6 +30,7 @@ class VLLMClient(LLMClient):
         dtype: str = "bfloat16",
         max_model_len: int = 4096,
         gpu_memory_utilization: float = 0.90,
+        tensor_parallel_size: int = 1,
         seed: Optional[int] = None,
     ):
         try:
@@ -44,14 +45,25 @@ class VLLMClient(LLMClient):
                 "FakeLLMClient instead."
             ) from exc
 
-        logger.info("Loading vLLM model '%s' (dtype=%s, max_model_len=%d)...",
-                     model_id, dtype, max_model_len)
+        # vLLM's LLM() constructor requires an int seed, not None — default
+        # to 0 rather than silently failing. (Caught during Kaggle smoke
+        # testing: T4 sessions passed seed=None through from an unset
+        # config value.)
+        if seed is None:
+            seed = 0
+
+        logger.info(
+            "Loading vLLM model '%s' (dtype=%s, max_model_len=%d, "
+            "tensor_parallel_size=%d, gpu_memory_utilization=%.2f)...",
+            model_id, dtype, max_model_len, tensor_parallel_size, gpu_memory_utilization,
+        )
         self.model_id = model_id
         self._llm = LLM(
             model=model_id,
             dtype=dtype,
             max_model_len=max_model_len,
             gpu_memory_utilization=gpu_memory_utilization,
+            tensor_parallel_size=tensor_parallel_size,
             seed=seed,
         )
         logger.info("vLLM model '%s' loaded.", model_id)

@@ -31,11 +31,23 @@ import sys
 from src.llm.vllm_client import VLLMClient
 
 
-def main(model_id: str) -> None:
+def main(
+    model_id: str,
+    dtype: str = "float16",
+    max_model_len: int = 2048,
+    gpu_memory_utilization: float = 0.80,
+    tensor_parallel_size: int = 1,
+) -> None:
     print(f"=== Smoke test: {model_id} ===\n")
 
     print("[1/4] Loading model...")
-    client = VLLMClient(model_id=model_id, max_model_len=2048)
+    client = VLLMClient(
+        model_id=model_id,
+        dtype=dtype,
+        max_model_len=max_model_len,
+        gpu_memory_utilization=gpu_memory_utilization,
+        tensor_parallel_size=tensor_parallel_size,
+    )
     print("  OK\n")
 
     print("[2/4] generate(n=5) returns exactly 5 results...")
@@ -85,9 +97,19 @@ def main(model_id: str) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", type=str, required=True)
+    parser.add_argument("--dtype", type=str, default="float16")
+    parser.add_argument("--max-model-len", type=int, default=2048)
+    parser.add_argument("--gpu-memory-utilization", type=float, default=0.80)
+    parser.add_argument("--tensor-parallel-size", type=int, default=1)
     args = parser.parse_args()
     try:
-        main(args.model)
+        main(
+            model_id=args.model,
+            dtype=args.dtype,
+            max_model_len=args.max_model_len,
+            gpu_memory_utilization=args.gpu_memory_utilization,
+            tensor_parallel_size=args.tensor_parallel_size,
+        )
     except AssertionError as exc:
         print(f"\nSMOKE TEST FAILED: {exc}", file=sys.stderr)
         sys.exit(1)
