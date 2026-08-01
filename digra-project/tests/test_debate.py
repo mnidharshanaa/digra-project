@@ -228,3 +228,18 @@ def test_debate_result_carries_gold_answer_and_alternatives():
     assert isinstance(result, DebateResult)
     assert result.gold_answer == "Yale"
     assert result.gold_answer_alternatives == ["Yale University"]
+
+
+def test_max_tokens_propagates_to_all_debate_llm_calls():
+    # regression test for a real bug: run_debate accepted a generation
+    # config but never forwarded it, silently defaulting to 1024 regardless
+    # of what configs/base.yaml specified.
+    llm = FakeLLMClient(response_fn=lambda p: "resp")
+    run_debate(
+        llm=llm, question_id="q1", question="Q", gold_answer="Yale",
+        n_agents=3, n_rounds=3, setup="standard", seed=0,
+        max_tokens=42, temperature=0.7, top_p=0.9, top_k=10,
+    )
+    assert len(llm.calls) > 0
+    assert all(call["max_tokens"] == 42 for call in llm.calls)
+    assert all(call["temperature"] == 0.7 for call in llm.calls)

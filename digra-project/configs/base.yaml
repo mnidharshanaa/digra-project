@@ -24,10 +24,12 @@ project:
 # scripts/smoke_test_vllm.py on a dual-T4 session:
 #   - dtype "float16" not "bfloat16": T4 (Turing) has no native bfloat16
 #     tensor-core support; bfloat16 falls back to slow emulation there.
-#   - max_model_len lower than the model's native context: T4's 16GB VRAM
-#     is mostly consumed by the model weights themselves, leaving limited
-#     room for KV-cache at long context. Raise this if you have more VRAM
-#     (e.g. a single A100/L4 session) and confirm with the smoke test again.
+#   - max_model_len 3072: raised from an initial 2048 after a real Kaggle
+#     failure (see generation.max_tokens comment below for the root cause).
+#     A dual-T4 session's own log showed ~14.36GiB free per device with
+#     only ~9.3GiB actually used at max_model_len=2048, so there is real
+#     headroom for this increase — confirmed empirically, not guessed.
+#     Re-verify via smoke_test_vllm.py if you change GPU type/count.
 #   - tensor_parallel_size 2: assumes a dual-T4 Kaggle session. Set to 1 on
 #     a single-GPU session.
 # -----------------------------------------------------------------------------
@@ -36,14 +38,14 @@ models:
     hf_id: "meta-llama/Llama-3.1-8B-Instruct"
     role: "debate"
     dtype: "float16"
-    max_model_len: 2048
+    max_model_len: 3072
     gpu_memory_utilization: 0.80
     tensor_parallel_size: 2
   mistral:
     hf_id: "mistralai/Mistral-7B-Instruct-v0.3"
     role: "debate"
     dtype: "float16"
-    max_model_len: 2048
+    max_model_len: 3072
     gpu_memory_utilization: 0.80
     tensor_parallel_size: 2
   entropy_proxy: null            # e.g. a smaller model id if using a cheaper
@@ -93,7 +95,17 @@ debate:
   correct_pool_sampling_attempts: 50
 
 generation:
-  max_tokens: 1024
+  # 1024 (the paper's Table V value) is oversized for this pipeline's
+  # short-answer QA format ("...Final answer: X") AND is directly what
+  # caused a real Kaggle failure: pool_generation.py's guided/few-shot
+  # prompt (Appendix B-3 step 3) embeds prior generations as examples, so
+  # a few 1024-token examples plus the question/gold-answer scaffolding
+  # pushed a request past max_model_len=2048 on question nq2_0478 during
+  # the first real pool-building run. Capped here at 300 — comfortably
+  # enough for reasoning + a final-answer line on these tasks — with
+  # src/data/prompts.py's max_examples cap (3) as a second, independent
+  # safety margin against the same failure mode.
+  max_tokens: 300
   temperature: 1.0
   top_p: 1.0
   top_k: 50

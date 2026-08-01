@@ -60,6 +60,10 @@ def run_debates_for_dataset_model(
     n_rounds: int,
     registry: RunRegistry,
     out_path: Union[str, Path],
+    max_tokens: int = 300,
+    temperature: float = 1.0,
+    top_p: float = 1.0,
+    top_k: int = 50,
 ) -> dict:
     """
     Run every (setup x seed x question) combination for one (dataset, model,
@@ -117,6 +121,10 @@ def run_debates_for_dataset_model(
                         correct_pool=(pool or {}).get("correct_texts", []),
                         incorrect_pool=(pool or {}).get("incorrect_texts", []),
                         seed=seed,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        top_p=top_p,
+                        top_k=top_k,
                     )
                 except InsufficientPoolError as exc:
                     logger.error(

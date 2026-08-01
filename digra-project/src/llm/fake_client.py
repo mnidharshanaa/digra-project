@@ -50,7 +50,11 @@ class FakeLLMClient(LLMClient):
         logprobs_topk: Optional[int] = None,
         seed: Optional[int] = None,
     ) -> list[GenerationResult]:
-        self.calls.append({"method": "generate", "prompt": prompt, "n": n})
+        self.calls.append({
+            "method": "generate", "prompt": prompt, "n": n,
+            "max_tokens": max_tokens, "temperature": temperature,
+            "top_p": top_p, "top_k": top_k,
+        })
         return [GenerationResult(text=self._next_text(prompt)) for _ in range(n)]
 
     def forced_decode(

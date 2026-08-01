@@ -52,14 +52,26 @@ def generate_round_one_standard(
     question: str,
     n_agents: int,
     seed: int = 0,
+    max_tokens: int = 300,
+    temperature: float = 1.0,
+    top_p: float = 1.0,
+    top_k: int = 50,
 ) -> list:
     """
     'Standard Debate' round-1 initialization (Table I's bottom row): no
     seeding from pools — every agent independently generates a genuine
     fresh response to the neutral prompt.
+
+    `max_tokens`/etc should be sourced from configs/base.yaml's
+    `generation` section by the caller, not left at these defaults in a
+    real run — see src/data/pool_generation.py's docstring for the
+    context-length failure this matters for.
     """
     prompt = build_neutral_prompt(question)
-    results = llm.generate(prompt, n=n_agents, seed=seed)
+    results = llm.generate(
+        prompt, n=n_agents, seed=seed,
+        max_tokens=max_tokens, temperature=temperature, top_p=top_p, top_k=top_k,
+    )
     if len(results) != n_agents:
         raise RuntimeError(
             f"Expected {n_agents} round-1 responses from LLMClient, got {len(results)}."
@@ -80,6 +92,10 @@ def run_debate(
     incorrect_pool: Optional[list] = None,   # required unless setup == "standard"
     communication_fn: CommunicationFn = _fully_connected_partners,
     seed: int = 0,
+    max_tokens: int = 300,
+    temperature: float = 1.0,
+    top_p: float = 1.0,
+    top_k: int = 50,
 ) -> DebateResult:
     """
     Run one full debate for one question.
@@ -93,11 +109,17 @@ def run_debate(
     visible partners to its IGR-selected subset — the rest of this loop is
     identical between Standard MAD and DIGRA, which is why it's factored
     out as a hook rather than duplicated.
+
+    `max_tokens`/`temperature`/`top_p`/`top_k` should be sourced from
+    configs/base.yaml's `generation` section by the caller.
     """
     gold_answer_alternatives = gold_answer_alternatives or []
 
     if setup == "standard":
-        round1 = generate_round_one_standard(llm, question, n_agents, seed=seed)
+        round1 = generate_round_one_standard(
+            llm, question, n_agents, seed=seed,
+            max_tokens=max_tokens, temperature=temperature, top_p=top_p, top_k=top_k,
+        )
         setup_label = "standard"
     else:
         n_incorrect, n_correct = setup
@@ -126,7 +148,10 @@ def run_debate(
                 own_previous_response=prev_round_responses[agent_id],
                 other_responses=partner_responses,
             )
-            result = llm.generate(prompt, n=1, seed=seed + round_idx * 1000 + agent_id)[0]
+            result = llm.generate(
+                prompt, n=1, seed=seed + round_idx * 1000 + agent_id,
+                max_tokens=max_tokens, temperature=temperature, top_p=top_p, top_k=top_k,
+            )[0]
             new_round_texts[agent_id] = result.text
 
         for agent_id in range(n_agents):

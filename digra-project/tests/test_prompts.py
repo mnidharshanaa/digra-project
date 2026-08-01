@@ -28,3 +28,20 @@ def test_guided_prompt_numbers_multiple_examples():
     )
     assert "Example correct response 1:" in p
     assert "Example correct response 2:" in p
+
+
+def test_guided_prompt_caps_examples_at_max_examples():
+    examples = [f"example number {i}" for i in range(10)]
+    p = build_guided_correct_prompt(
+        question="Q", gold_answer="A", correct_examples=examples, max_examples=3
+    )
+    assert "Example correct response 3:" in p
+    assert "Example correct response 4:" not in p
+    assert "example number 3" not in p  # 4th example (0-indexed) excluded
+
+
+def test_guided_prompt_default_cap_is_3():
+    examples = [f"example number {i}" for i in range(10)]
+    p = build_guided_correct_prompt(question="Q", gold_answer="A", correct_examples=examples)
+    assert "Example correct response 3:" in p
+    assert "Example correct response 4:" not in p

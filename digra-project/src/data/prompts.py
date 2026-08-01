@@ -31,18 +31,28 @@ def build_guided_correct_prompt(
     question: str,
     gold_answer: str,
     correct_examples: list,
+    max_examples: int = 3,
 ) -> str:
     """
     Appendix B-3 step 3: the model is given the gold answer directly plus
     n1-shot examples drawn from its own already-correct round-1 samples,
     and asked to produce another correct response in a similar style.
+
+    `max_examples` caps how many examples get embedded, regardless of how
+    many are available — each example can itself be a full generation
+    (up to generation.max_tokens long), so embedding all of them
+    unconditionally risks exceeding the model's context window. Caught in
+    practice on Kaggle (T4, max_model_len=2048): a guided prompt embedding
+    5 correct examples pushed the request to 2049+ input tokens with the
+    original (uncapped) implementation.
     """
-    if not correct_examples:
+    examples_to_use = correct_examples[:max_examples]
+    if not examples_to_use:
         examples_block = "(no prior correct examples available)"
     else:
         examples_block = "\n\n".join(
             f"Example correct response {i + 1}:\n{ex}"
-            for i, ex in enumerate(correct_examples)
+            for i, ex in enumerate(examples_to_use)
         )
 
     return (

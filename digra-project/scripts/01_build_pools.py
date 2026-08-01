@@ -93,6 +93,10 @@ def main(config_path: str) -> None:
                     n_all=cfg.debate.correct_pool_size,
                     n_attempts=cfg.debate.correct_pool_sampling_attempts,
                     seed=cfg.project.seeds[0],
+                    max_tokens=cfg.generation.max_tokens,
+                    temperature=cfg.generation.temperature,
+                    top_p=cfg.generation.top_p,
+                    top_k=cfg.generation.top_k,
                 )
 
                 append_jsonl(out_path, asdict(pool_result))

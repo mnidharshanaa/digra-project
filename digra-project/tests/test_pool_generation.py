@@ -101,6 +101,38 @@ def test_incorrect_texts_passed_through_unchanged():
     assert result.incorrect_texts == ["a1", "a2", "a3"]
 
 
+def test_max_tokens_actually_propagates_to_llm_calls():
+    # regression test for a real bug: max_tokens was accepted by config but
+    # never forwarded to llm.generate(), silently falling back to
+    # LLMClient's default (1024) regardless of what was configured.
+    scripted = ["Final answer: Yale"] * 5 + ["Final answer: Duke"] * 5
+    llm = FakeLLMClient(scripted_responses=scripted)
+
+    build_pool_for_question(
+        llm=llm, question_id="q1", question="Q", gold_answer="Yale",
+        alternatives=[], logical_appeals=[], n_all=3, n_attempts=10,
+        seed=0, max_tokens=42, temperature=0.7, top_p=0.9, top_k=10,
+    )
+
+    assert llm.calls[0]["max_tokens"] == 42
+    assert llm.calls[0]["temperature"] == 0.7
+    assert llm.calls[0]["top_p"] == 0.9
+    assert llm.calls[0]["top_k"] == 10
+
+
+def test_max_tokens_propagates_to_guided_batch_too():
+    scripted_step1 = ["Final answer: Duke"] * 10
+    scripted_step3 = ["Final answer: Yale"] * 5
+    llm = FakeLLMClient(scripted_responses=scripted_step1 + scripted_step3)
+
+    build_pool_for_question(
+        llm=llm, question_id="q1", question="Q", gold_answer="Yale",
+        alternatives=[], logical_appeals=[], n_all=5, n_attempts=10,
+        seed=0, max_tokens=42,
+    )
+    assert llm.calls[1]["max_tokens"] == 42
+
+
 def test_result_is_deterministic_given_same_seed():
     scripted = ["Final answer: Yale"] * 5 + ["Final answer: Duke"] * 5
     llm_a = FakeLLMClient(scripted_responses=list(scripted))

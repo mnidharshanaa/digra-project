@@ -44,6 +44,10 @@ def build_pool_for_question(
     n_all: int = 5,
     n_attempts: int = 50,
     seed: int = 0,
+    max_tokens: int = 300,
+    temperature: float = 1.0,
+    top_p: float = 1.0,
+    top_k: int = 50,
 ) -> PoolResult:
     """
     Full Appendix B-3 procedure for one question:
@@ -53,6 +57,16 @@ def build_pool_for_question(
               shortfall via a single guided (few-shot + gold-answer) batch,
               accepted as-is per the paper's design (guided generation is
               trusted, not re-filtered).
+
+    `max_tokens`/`temperature`/`top_p`/`top_k` should be sourced from
+    configs/base.yaml's `generation` section by the caller — NOT left at
+    this function's defaults in a real run, since the guided prompt
+    (step 3) embeds prior generations as few-shot examples, and an
+    oversized max_tokens here compounds directly into that prompt's
+    length (this is exactly what caused a real context-length failure on
+    Kaggle when max_tokens defaulted to 1024 unwired from config; see
+    src/data/prompts.py's max_examples cap for the second layer of
+    defense against the same failure mode).
 
     Note on design: `llm.generate(n=k)` is contractually guaranteed to
     return exactly k completions (see src/llm/client.py), so step 3 always
@@ -64,7 +78,10 @@ def build_pool_for_question(
     rng = random.Random(seed)
 
     neutral_prompt = build_neutral_prompt(question)
-    step1_results = llm.generate(neutral_prompt, n=n_attempts, seed=seed)
+    step1_results = llm.generate(
+        neutral_prompt, n=n_attempts, seed=seed,
+        max_tokens=max_tokens, temperature=temperature, top_p=top_p, top_k=top_k,
+    )
     sampled_texts = [r.text for r in step1_results]
 
     selection = select_correct_pool(sampled_texts, gold_answer, alternatives, n_all, rng)
@@ -75,7 +92,10 @@ def build_pool_for_question(
         guided_prompt = build_guided_correct_prompt(
             question=question, gold_answer=gold_answer, correct_examples=correct_pool,
         )
-        extra_results = llm.generate(guided_prompt, n=selection.n_needed, seed=seed + 1000)
+        extra_results = llm.generate(
+            guided_prompt, n=selection.n_needed, seed=seed + 1000,
+            max_tokens=max_tokens, temperature=temperature, top_p=top_p, top_k=top_k,
+        )
         extra_texts = [r.text for r in extra_results]
 
         n_extra_verified_correct = sum(

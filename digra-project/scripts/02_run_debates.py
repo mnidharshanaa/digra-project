@@ -100,6 +100,10 @@ def main(config_path: str) -> None:
                     n_rounds=cfg.debate.n_rounds,
                     registry=registry,
                     out_path=out_path,
+                    max_tokens=cfg.generation.max_tokens,
+                    temperature=cfg.generation.temperature,
+                    top_p=cfg.generation.top_p,
+                    top_k=cfg.generation.top_k,
                 )
                 logger.info(
                     "Done: dataset=%s model=%s n_agents=%d — built=%d skipped=%d errors=%d",
