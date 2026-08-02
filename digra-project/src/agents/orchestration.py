@@ -22,6 +22,25 @@ from src.utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 
+def apply_debate_question_cap(df: pd.DataFrame, max_questions) -> pd.DataFrame:
+    """
+    Truncate `df` to its first `max_questions` rows (deterministic — always
+    the same prefix given the same df), or return it unchanged if
+    max_questions is None or >= len(df).
+
+    Deliberately a prefix slice, NOT a fresh random re-sample: `df` here is
+    always produced by the same load_dataset(..., n_questions=X, seed=Y)
+    call used when the pools for these questions were built (see
+    scripts/01_build_pools.py and scripts/02_run_debates.py), so a prefix
+    slice is guaranteed to only select questions that already have pools
+    built — re-sampling with a smaller n_questions instead would silently
+    pick a different subset and orphan already-completed pool-building work.
+    """
+    if max_questions is None or max_questions >= len(df):
+        return df
+    return df.iloc[:max_questions].reset_index(drop=True)
+
+
 def parse_setup(raw_setup):
     """Config setups are either the string "standard" or a 2-element list
     [n_incorrect, n_correct] (YAML lists deserialize as plain Python lists,

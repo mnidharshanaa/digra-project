@@ -112,6 +112,15 @@ def run_debate(
 
     `max_tokens`/`temperature`/`top_p`/`top_k` should be sourced from
     configs/base.yaml's `generation` section by the caller.
+
+    Note on seeding: round 2+ generation is seeded once per round
+    (`seed + round_idx * 1000`), not per agent as an earlier unbatched
+    implementation did — batching all agents' prompts into one
+    generate_batch() call means they share one SamplingParams seed. This
+    is a deliberate, documented trade-off for the batching performance fix
+    (see generate_batch's docstring), not expected to bias results at the
+    scale this project runs at (4 seeds already provide seed-level
+    variance across whole debates).
     """
     gold_answer_alternatives = gold_answer_alternatives or []
 
@@ -139,20 +148,29 @@ def run_debate(
 
     for round_idx in range(1, n_rounds):
         prev_round_responses = [agent_responses[i][-1] for i in range(n_agents)]
-        new_round_texts = [None] * n_agents
 
+        prompts = []
         for agent_id in range(n_agents):
             partner_responses = communication_fn(agent_id, round_idx, prev_round_responses)
-            prompt = build_debate_round_prompt(
-                question=question,
-                own_previous_response=prev_round_responses[agent_id],
-                other_responses=partner_responses,
+            prompts.append(
+                build_debate_round_prompt(
+                    question=question,
+                    own_previous_response=prev_round_responses[agent_id],
+                    other_responses=partner_responses,
+                )
             )
-            result = llm.generate(
-                prompt, n=1, seed=seed + round_idx * 1000 + agent_id,
-                max_tokens=max_tokens, temperature=temperature, top_p=top_p, top_k=top_k,
-            )[0]
-            new_round_texts[agent_id] = result.text
+
+        # Single batched call for the whole round — every agent's prompt is
+        # different, so this is generate_batch (many distinct prompts, one
+        # completion each), not generate's n>1-of-one-prompt batching. See
+        # LLMClient.generate_batch's docstring for why this matters: the
+        # original one-call-per-agent loop left the GPU at batch size 1 for
+        # the entire debate, which was the actual cause of multi-day runtimes.
+        results = llm.generate_batch(
+            prompts, seed=seed + round_idx * 1000,
+            max_tokens=max_tokens, temperature=temperature, top_p=top_p, top_k=top_k,
+        )
+        new_round_texts = [r.text for r in results]
 
         for agent_id in range(n_agents):
             agent_responses[agent_id].append(new_round_texts[agent_id])

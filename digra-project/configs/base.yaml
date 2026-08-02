@@ -12,7 +12,12 @@ project:
   # /kaggle/working/ (session-local) with periodic sync to a Kaggle Dataset
   # (persistent across sessions) — see src/utils/checkpoint.py.
   output_root: "results"
-  seeds: [0, 1, 2, 3]          # reused identically across every method/dataset
+  seeds: [0]                   # reduced from [0,1,2,3] for a first full end-to-end
+                                # validation pass (see configs/full_scale.yaml to restore
+                                # all 4 seeds later — safe to do any time, since already-
+                                # completed seed=0 debates/pools are unaffected and reused
+                                # via checkpoint resume, this only adds new work, never
+                                # invalidates old work)
 
 # -----------------------------------------------------------------------------
 # Models under test. `hf_id` must match a HuggingFace repo you have access to.
@@ -71,19 +76,29 @@ data:
 datasets:
   nq:
     farm_subsets: ["nq1", "nq2"]   # pooled — see note above
-    n_questions: 150               # working sample size; raise once pipeline is verified
+    n_questions: 30                # cut down after a lost Kaggle session — see README "Lessons"
   boolq:
     farm_subsets: ["boolq"]
-    n_questions: 150
+    n_questions: 30
   truthfulqa:
     farm_subsets: ["truthfulqa"]
-    n_questions: 150
+    n_questions: 30
 
 # -----------------------------------------------------------------------------
 # Debate mechanics
 # -----------------------------------------------------------------------------
 debate:
-  agent_counts: [3, 5]
+  agent_counts: [3]            # reduced from [3,5] for a first pass — the
+                                # hallucination_setups below are defined for
+                                # n_agents=3 (matching the paper's Table I); see
+                                # configs/full_scale.yaml to add n_agents=5 later
+  # Caps how many of the already-pool-built questions actually get debated,
+  # WITHOUT changing datasets.*.n_questions (which would pick a different
+  # random subsample and orphan already-completed pool-building work — see
+  # src/agents/orchestration.py's apply_debate_question_cap). null = debate
+  # every pool-built question. Set to e.g. 30 for a fast first debate pass
+  # on a subset of questions you've already built pools for.
+  max_questions_per_dataset: null
   n_rounds: 3
   hallucination_setups:          # (n_incorrect, n_correct) at round 1, for agent_count=3
     - [3, 0]                     # lower bound

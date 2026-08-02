@@ -121,6 +121,65 @@ class VLLMClient(LLMClient):
             )
         return results
 
+    def generate_batch(
+        self,
+        prompts: list[str],
+        max_tokens: int = 1024,
+        temperature: float = 1.0,
+        top_p: float = 1.0,
+        top_k: int = 50,
+        logprobs_topk: Optional[int] = None,
+        seed: Optional[int] = None,
+    ) -> list[GenerationResult]:
+        """
+        Batches all of `prompts` into a single vLLM call — vLLM's engine
+        schedules distinct prompts together and processes them as one
+        batch on the GPU, rather than each call individually paying fixed
+        per-call scheduling overhead and running at batch size 1.
+
+        This is what src/agents/debate.py's round-2+ loop uses: every
+        agent has a different prompt each round, so this method — not
+        `generate`'s n-samples-of-one-prompt batching — is what actually
+        parallelizes a debate round across agents. Confirmed as the fix
+        for a real multi-day-runtime problem: calling `generate` once per
+        agent in a Python loop (the original implementation) left the GPU
+        running at batch size 1 for the entire debate loop.
+        """
+        from vllm import SamplingParams
+
+        sampling_params = SamplingParams(
+            n=1,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+            logprobs=logprobs_topk,
+            seed=seed,
+        )
+        outputs = self._llm.generate(list(prompts), sampling_params, use_tqdm=False)
+
+        results = []
+        for output in outputs:
+            completion = output.outputs[0]  # n=1, exactly one completion per prompt
+            token_logprobs = None
+            if logprobs_topk is not None and completion.logprobs is not None:
+                token_logprobs = [
+                    {lp.decoded_token: lp.logprob for lp in position.values()}
+                    for position in completion.logprobs
+                ]
+            results.append(
+                GenerationResult(text=completion.text, token_logprobs=token_logprobs)
+            )
+
+        if len(results) != len(prompts):
+            raise RuntimeError(
+                f"VLLMClient.generate_batch was given {len(prompts)} prompts "
+                f"but vLLM returned {len(results)} results. This violates "
+                f"the LLMClient contract every calling module assumes — "
+                f"investigate before proceeding."
+            )
+        return results
+
     def forced_decode(
         self,
         prompt: str,

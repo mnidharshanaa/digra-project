@@ -1,6 +1,7 @@
 import pandas as pd
 
 from src.agents.orchestration import (
+    apply_debate_question_cap,
     load_pools_for_dataset_model,
     parse_setup,
     run_debates_for_dataset_model,
@@ -35,6 +36,41 @@ def _write_pools_file(path):
         "correct_texts": ["correct C", "correct D"],
         "incorrect_texts": ["wrong C", "wrong D"],
     })
+
+
+# ---------------------------------------------------------------------------
+# apply_debate_question_cap
+# ---------------------------------------------------------------------------
+
+def test_cap_none_returns_full_df_unchanged():
+    df = _tiny_df()
+    result = apply_debate_question_cap(df, None)
+    assert len(result) == len(df)
+    assert result["question_id"].tolist() == df["question_id"].tolist()
+
+
+def test_cap_larger_than_df_returns_full_df():
+    df = _tiny_df()
+    result = apply_debate_question_cap(df, max_questions=1000)
+    assert len(result) == len(df)
+
+
+def test_cap_truncates_to_first_k_rows():
+    df = _tiny_df()
+    result = apply_debate_question_cap(df, max_questions=1)
+    assert len(result) == 1
+    assert result["question_id"].iloc[0] == df["question_id"].iloc[0]
+
+
+def test_cap_is_deterministic_prefix_matching_pool_build_order():
+    # The whole point: capping must never select a question_id that
+    # wouldn't already be in a smaller earlier-loaded set — i.e. it must be
+    # a strict prefix, so a smaller cap's questions are always a subset of
+    # a larger cap's questions (and therefore always already pool-built).
+    df = _tiny_df()
+    small = apply_debate_question_cap(df, max_questions=1)
+    large = apply_debate_question_cap(df, max_questions=2)
+    assert set(small["question_id"]).issubset(set(large["question_id"]))
 
 
 # ---------------------------------------------------------------------------

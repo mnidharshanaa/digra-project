@@ -35,8 +35,8 @@ from src.utils.logging_config import get_logger, setup_logging
 logger = get_logger(__name__)
 
 
-def main(config_path: str) -> None:
-    cfg = load_config(config_path)
+def main(config_path: str, overrides_path: str = None) -> None:
+    cfg = load_config(config_path, overrides=overrides_path)
     output_root = Path(cfg.project.output_root)
     setup_logging(output_root)
 
@@ -119,5 +119,10 @@ def main(config_path: str) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=str, default="configs/base.yaml")
+    parser.add_argument(
+        "--overrides", type=str, default=None,
+        help="Optional override YAML merged on top of --config, e.g. "
+             "configs/full_scale.yaml to restore all seeds/agent-counts.",
+    )
     args = parser.parse_args()
-    main(args.config)
+    main(args.config, args.overrides)

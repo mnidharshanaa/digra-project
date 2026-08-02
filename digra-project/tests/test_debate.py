@@ -44,14 +44,17 @@ def test_run_debate_rejects_setup_not_summing_to_n_agents():
 # ---------------------------------------------------------------------------
 
 def test_seeded_round1_makes_no_llm_call_for_round1():
-    # 3 agents, 2 rounds -> only round 2 needs LLM calls (3 of them)
+    # 3 agents, 2 rounds -> round 2 is ONE batched call (generate_batch),
+    # not one call per agent — see generate_batch's docstring for why.
     llm = FakeLLMClient(scripted_responses=["r2_a0", "r2_a1", "r2_a2"])
     result = run_debate(
         llm=llm, question_id="q1", question="Q", gold_answer="Yale",
         n_agents=3, n_rounds=2, setup=(2, 1),
         correct_pool=CORRECT_POOL, incorrect_pool=INCORRECT_POOL, seed=0,
     )
-    assert len(llm.calls) == 3  # only round-2 generations, none for round 1
+    assert len(llm.calls) == 1  # one batched round-2 call covering all 3 agents
+    assert llm.calls[0]["method"] == "generate_batch"
+    assert llm.calls[0]["n"] == 3
     assert result.setup == "2,1"
 
 
@@ -93,8 +96,11 @@ def test_standard_setup_round1_uses_llm():
     )
     assert result.setup == "standard"
     assert [result.agent_responses[i][0] for i in range(3)] == ["fresh_a0", "fresh_a1", "fresh_a2"]
-    # 1 call for round1 (n=3) + 3 calls for round2 (n=1 each) = 4 total
-    assert len(llm.calls) == 4
+    # 1 call for round1 (n=3, same prompt) + 1 batched call for round2
+    # (3 different prompts, 1 completion each) = 2 total calls
+    assert len(llm.calls) == 2
+    assert llm.calls[0]["method"] == "generate"
+    assert llm.calls[1]["method"] == "generate_batch"
 
 
 # ---------------------------------------------------------------------------
@@ -123,17 +129,19 @@ def test_seeded_setup_n_rounds_1_makes_zero_llm_calls():
     assert all(len(agent_hist) == 1 for agent_hist in result.agent_responses)
 
 
-def test_call_count_scales_with_agents_and_rounds():
-    # 5 agents, 3 rounds -> rounds 2,3 each need 5 calls => 10 total
+def test_call_count_scales_with_rounds_not_agents():
+    # 5 agents, 3 rounds -> rounds 2 and 3 are each ONE batched call
+    # (batching is exactly the point: call count no longer scales with
+    # agent count, only with round count) => 2 total calls, not 10.
     llm = FakeLLMClient(response_fn=lambda p: "resp")
-    correct5 = CORRECT_POOL
-    incorrect5 = INCORRECT_POOL  # will sample with replacement for 5 incorrect
     result = run_debate(
         llm=llm, question_id="q1", question="Q", gold_answer="Yale",
         n_agents=5, n_rounds=3, setup=(2, 3),
-        correct_pool=correct5, incorrect_pool=incorrect5, seed=0,
+        correct_pool=CORRECT_POOL, incorrect_pool=INCORRECT_POOL, seed=0,
     )
-    assert len(llm.calls) == 10
+    assert len(llm.calls) == 2
+    assert all(call["method"] == "generate_batch" for call in llm.calls)
+    assert all(call["n"] == 5 for call in llm.calls)  # 5 prompts batched per round
     assert len(result.agent_responses) == 5
 
 

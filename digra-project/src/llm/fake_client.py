@@ -57,6 +57,23 @@ class FakeLLMClient(LLMClient):
         })
         return [GenerationResult(text=self._next_text(prompt)) for _ in range(n)]
 
+    def generate_batch(
+        self,
+        prompts: list[str],
+        max_tokens: int = 1024,
+        temperature: float = 1.0,
+        top_p: float = 1.0,
+        top_k: int = 50,
+        logprobs_topk: Optional[int] = None,
+        seed: Optional[int] = None,
+    ) -> list[GenerationResult]:
+        self.calls.append({
+            "method": "generate_batch", "prompts": list(prompts), "n": len(prompts),
+            "max_tokens": max_tokens, "temperature": temperature,
+            "top_p": top_p, "top_k": top_k,
+        })
+        return [GenerationResult(text=self._next_text(p)) for p in prompts]
+
     def forced_decode(
         self,
         prompt: str,

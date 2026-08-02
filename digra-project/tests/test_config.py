@@ -75,3 +75,20 @@ def test_to_dict_returns_plain_dict(base_yaml):
     plain = cfg.digra.to_dict()
     assert isinstance(plain, dict)
     assert plain["alpha"] == 0.2
+
+
+def test_full_scale_override_restores_seeds_and_agent_counts():
+    # regression test tied to the real project config files (not the tmp
+    # fixtures above): confirms configs/full_scale.yaml actually restores
+    # the full sweep on top of the reduced-scope configs/base.yaml.
+    cfg_base = load_config("configs/base.yaml")
+    assert cfg_base.project.seeds == [0]
+    assert cfg_base.debate.agent_counts == [3]
+
+    cfg_full = load_config("configs/base.yaml", overrides="configs/full_scale.yaml")
+    assert cfg_full.project.seeds == [0, 1, 2, 3]
+    assert cfg_full.debate.agent_counts == [3, 5]
+
+    # everything else from base.yaml survives the merge untouched
+    assert cfg_full.digra.alpha == cfg_base.digra.alpha
+    assert cfg_full.datasets.nq.n_questions == cfg_base.datasets.nq.n_questions

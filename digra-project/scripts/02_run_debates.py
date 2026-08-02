@@ -23,6 +23,7 @@ import argparse
 from pathlib import Path
 
 from src.agents.orchestration import (
+    apply_debate_question_cap,
     load_pools_for_dataset_model,
     parse_setup,
     run_debates_for_dataset_model,
@@ -36,8 +37,8 @@ from src.utils.logging_config import get_logger, setup_logging
 logger = get_logger(__name__)
 
 
-def main(config_path: str) -> None:
-    cfg = load_config(config_path)
+def main(config_path: str, overrides_path: str = None) -> None:
+    cfg = load_config(config_path, overrides=overrides_path)
     output_root = Path(cfg.project.output_root)
     setup_logging(output_root)
 
@@ -71,6 +72,7 @@ def main(config_path: str) -> None:
                 n_questions=dataset_cfg.n_questions,
                 seed=cfg.project.seeds[0],
             )
+            df = apply_debate_question_cap(df, cfg.debate.max_questions_per_dataset)
 
             pools_path = pools_dir / f"{dataset_key}_{model_name}.jsonl"
             if not pools_path.exists():
@@ -115,5 +117,10 @@ def main(config_path: str) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=str, default="configs/base.yaml")
+    parser.add_argument(
+        "--overrides", type=str, default=None,
+        help="Optional override YAML merged on top of --config, e.g. "
+             "configs/full_scale.yaml to restore all seeds/agent-counts.",
+    )
     args = parser.parse_args()
-    main(args.config)
+    main(args.config, args.overrides)
